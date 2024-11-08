@@ -1,9 +1,13 @@
 from pyspark.sql import SparkSession
 from pyspark.sql.types import *
-import pandas as pd
+from pyspark.sql import functions as F
+from pyspark.sql.types import TimestampType
 
 # Initialize Spark session
-spark = SparkSession.builder.appName("JSONLoader").getOrCreate()
+spark = SparkSession.builder.appName("CSVloader").getOrCreate()
+
+spark.conf.set("spark.sql.legacy.timeParserPolicy", "LEGACY")
+
 
 # Read the JSON file as a DataFrame
 df = spark.read.json("test.json")
@@ -20,11 +24,10 @@ online_schema = StructType([StructField("InvoiceNo", IntegerType(), False),
 
 online_retail_df = spark.read.csv("Online-Retail.csv", inferSchema=True, header=True)
 
-#online_retail_df['InvoiceDate'] = pd.to_datetime(online_retail_df['InvoiceDate'], format='%Y-%m-%d %H:%M:%S')
+online_retail_df = online_retail_df.withColumn("InvoiceDate", F.to_timestamp("InvoiceDate", "M/d/yyyy H:mm"))
+online_retail_df = online_retail_df.withColumn("InvoiceDate", F.col("InvoiceDate").cast(TimestampType()))
+online_retail_df.printSchema()
 
-# Display the data
-online_retail_df.show()
-
-print(online_retail_df.describe())
+online_retail_df.select(F.min("InvoiceDate").alias("EarliestDate"), F.max("InvoiceDate").alias("LatestDate")).show()
 
 spark.stop()
