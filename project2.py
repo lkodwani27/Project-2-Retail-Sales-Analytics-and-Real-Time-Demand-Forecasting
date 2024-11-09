@@ -66,6 +66,11 @@ online_retail_df = online_retail_df.withColumn("Description", F.upper(F.col("Des
 
 online_retail_df.show()
 
+date_df = online_retail_df.withColumn("Month", F.month("InvoiceDate")) \
+                                   .withColumn("Year", F.year("InvoiceDate")).withColumn("Day", F.dayofmonth("InvoiceDate"))
+                                   
+date_df.show()
+
 #online_retail_df.select(F.min("InvoiceDate").alias("EarliestDate"), F.max("InvoiceDate").alias("LatestDate")).show()
 #online_retail_df.groupBy(F.to_date("InvoiceDate").alias("Date")).count().orderBy("Date").show()
 
@@ -112,6 +117,6 @@ def task5(socket_stream):
 task2(online_retail_df)
 task3(online_retail_df)
 task4(reviwes_df)
-task5()
+#task5()
 
 spark.stop()
