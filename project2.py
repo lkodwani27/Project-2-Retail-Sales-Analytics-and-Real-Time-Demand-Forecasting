@@ -10,9 +10,11 @@ spark = SparkSession.builder.appName("Project2").getOrCreate()
 spark.conf.set("spark.sql.legacy.timeParserPolicy", "LEGACY")
 
 output_dir = "output/"
-task2_output = output_dir + "task2.csv"
-task3_output = output_dir + "task3.csv"
-task4_output = output_dir + "task4.csv"
+task2_output_total = output_dir + "task2/task2_total.csv"
+task2_output_avgsales = output_dir + "task2/task2_avgsales.csv"
+task2_output_season = output_dir + "task2/task2_season.csv"
+task3_output = output_dir + "task3/task3.csv"
+task4_output = output_dir + "task4/task4.csv"
 
 checkpoint_dir = "checkpoint/task5/"
 task5_output = output_dir + "task5.csv"
@@ -58,65 +60,85 @@ online_retail_df.filter((col("Quantity") < 0) | (col("UnitPrice") < 0)).show()
 online_retail_df = online_retail_df.filter((F.col("Quantity") >= 0) & (F.col("UnitPrice") >= 0))
 #online_retail_df.filter((col("Quantity") < 0) | (col("UnitPrice") < 0)).show()
 #online_retail_df.printSchema()
-#standardize the consistent description
+#standardize for consistent description characters
 online_retail_df = online_retail_df.withColumn("Description", F.upper(F.col("Description")))
 
 #handle special cases in case for better performance for MLlib
 #online_retail_df = online_retail_df.filter(~F.col("InvoiceNo").startswith("C"))
-
 online_retail_df.show()
-
-date_df = online_retail_df.withColumn("Month", F.month("InvoiceDate")) \
-                                   .withColumn("Year", F.year("InvoiceDate")).withColumn("Day", F.dayofmonth("InvoiceDate"))
-                                   
-date_df.show()
-
-#online_retail_df.select(F.min("InvoiceDate").alias("EarliestDate"), F.max("InvoiceDate").alias("LatestDate")).show()
-#online_retail_df.groupBy(F.to_date("InvoiceDate").alias("Date")).count().orderBy("Date").show()
 
 #-----------------------------------
 #Task 2: Sales Data Aggregation and Feature Engineering
 #-----------------------------------
-def task2(df):
+#total sales per product per month
+#get the month and year from invoicedate
+online_retail_df = online_retail_df.withColumn("Month", F.month("InvoiceDate")).withColumn("Year", F.year("InvoiceDate"))
     
-    pass
+#make a revenue column, total quantity * price
+online_retail_df = online_retail_df.withColumn("Revenue", col("Quantity") * col("UnitPrice"))
+    
+#total sales per product and month. calculated by summing total quantity * price
+total_sales_df = online_retail_df.groupBy("StockCode", "Month", "Year").agg(F.sum("Revenue").alias("TotalSales"))
+total_sales_df.show()
+    
+#average revenue per customer
+#get average revnue for each customer id
+avg_revnue_df = online_retail_df.groupBy("CustomerID").agg(F.avg("Revenue").alias("AverageRevenue")).orderBy(F.desc("AverageRevenue"))
+avg_revnue_df.show()
+    
+#seasonal patterns for top selling products
+#get products by stock code and their highest total revnue as sum
+top_products_df = online_retail_df.groupBy("StockCode").agg(F.sum("Revenue").alias("TotalRevenue")).orderBy(F.desc("TotalRevenue"))
+    
+#join with df to get montly data, group by product and month for each of their total revenue
+seasonal_pattern = online_retail_df.join(top_products_df.limit(10), "StockCode").groupBy("StockCode", "Month").agg(F.sum("Revenue").alias("MonthlySales"))
+seasonal_pattern.show()
 
 
+#customer liftime value: total revenue per customer
+clv_df = online_retail_df.groupBy("CustomerID").agg(F.sum("Revenue").alias("CustomerLifetimeValue"))
+clv_df.show()
+    
+#product popularity: counted by unique transaction made under each stock code
+product_popularity = online_retail_df.groupBy("StockCode").agg(F.countDistinct("InvoiceNo").alias("PopularityScore"))
+product_popularity.show()
+    
+#seasonal trends:
+#make season column based on month
+online_retail_df = online_retail_df.withColumn("Season",
+                    F.when(col("Month").isin(12, 1, 2), "Winter") #if month is in one of these numbers
+                    .when(col("Month").isin(3, 4, 5), "Spring")
+                    .when(col("Month").isin(6, 7, 8), "Summer")
+                    .when(col("Month").isin(9, 10, 11), "Fall")
+                    )
+    
+#total revenue of each product and season
+seasonal_trends = online_retail_df.groupBy("StockCode", "Season").agg(F.sum("Revenue").alias("SeasonalSales"))
+seasonal_trends.show()
+    
+#total_sales_df.write.csv(task2_output_total, header=True)
+#avg_revnue_df.write.csv(task2_output_avgsales, header=True)
+#seasonal_pattern.write.csv(task2_output_season, header=True)
 
 #-----------------------------------
 #Task 3: Demand Forecasting Model
 #-----------------------------------
 
-def task3(df):
-    
-    pass
-
 
 #-----------------------------------
 #Task 4: Sentiment Analysis on Customer Reviews
 #-----------------------------------
-def task4(df):
-    
-    pass
 
 
 #-----------------------------------
 #Task 5: Real-Time Transaction Monitoring using Spark Streaming
 #-----------------------------------
-def task5(socket_stream):
     
-    #filtered_stream.writeStream.format("csv")\
-    #     .option("path", task5_output)\
-    #     .option("header", True)\
-    #     .option("checkpointLocation", checkpoint_dir)\
-    #     .outputMode("append").start()\
-    #     .awaitTermination()
-    
-    pass
-
-task2(online_retail_df)
-task3(online_retail_df)
-task4(reviwes_df)
-#task5()
+#filtered_stream.writeStream.format("csv")\
+#     .option("path", task5_output)\
+#     .option("header", True)\
+#     .option("checkpointLocation", checkpoint_dir)\
+#     .outputMode("append").start()\
+#     .awaitTermination()
 
 spark.stop()
