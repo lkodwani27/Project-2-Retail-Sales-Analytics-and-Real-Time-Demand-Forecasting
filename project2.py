@@ -10,8 +10,8 @@ spark = SparkSession.builder.appName("Project2").getOrCreate()
 spark.conf.set("spark.sql.legacy.timeParserPolicy", "LEGACY")
 
 output_dir = "output/"
-task2_output_total = "task2/task2_total.csv"
-task2_output_avgsales = "task2/task2_avgsales.csv"
+task2_output_total = output_dir + "task2/task2_total.csv"
+task2_output_avgsales = output_dir + "task2/task2_avgsales.csv"
 task2_output_season = output_dir + "task2/task2_season.csv"
 task3_output = output_dir + "task3/task3.csv"
 task4_output = output_dir + "task4/task4.csv"
@@ -26,7 +26,7 @@ reviwes_df = spark.read.json("test.json")
 train_df.show()
 reviwes_df.show()
 
-reviwes_df = reviwes_df.withColumn("helpful", F.col("helpful").cast("double"))
+#reviwes_df = reviwes_df.withColumn("helpful", F.col("helpful").cast("double"))
 #reviwes_df.printSchema()
 #print(reviwes_df.describe())
 # Check if any rows have nulls in the 'helpful' column after casting
@@ -116,13 +116,13 @@ online_retail_df = online_retail_df.withColumn("Season",
 seasonal_trends = online_retail_df.groupBy("StockCode", "Season").agg(F.sum("Revenue").alias("SeasonalSales"))
 seasonal_trends.show()
 
+#write the aggregated data to the directory as csv files
 try:
     total_sales_df.write.csv(task2_output_total, header=True)
+    avg_revnue_df.write.csv(task2_output_avgsales, header=True)
+    seasonal_pattern.write.csv(task2_output_season, header=True)
 except ValueError as e:
     print(f"error {e}")
-
-# avg_revnue_df.write.csv(task2_output_avgsales, header=True)
-# seasonal_pattern.write.csv(task2_output_season, header=True)
 
 #-----------------------------------
 #Task 3: Demand Forecasting Model
