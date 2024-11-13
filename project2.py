@@ -78,7 +78,7 @@ online_retail_df = online_retail_df.withColumn("Month", F.month("InvoiceDate")).
 online_retail_df = online_retail_df.withColumn("Revenue", col("Quantity") * col("UnitPrice"))
     
 #total sales per product and month. calculated by summing total quantity * price
-total_sales_df = online_retail_df.groupBy("StockCode", "Month", "Year").agg(F.sum("Revenue").alias("TotalSales"))
+total_sales_df = online_retail_df.groupBy("StockCode", "Description", "Month", "Year").agg(F.sum("Revenue").alias("TotalSales"))
 total_sales_df.show()
     
 #average revenue per customer
@@ -91,7 +91,7 @@ avg_revnue_df.show()
 top_products_df = online_retail_df.groupBy("StockCode").agg(F.sum("Revenue").alias("TotalRevenue")).orderBy(F.desc("TotalRevenue"))
     
 #join with df to get montly data, group by product and month for each of their total revenue
-seasonal_pattern = online_retail_df.join(top_products_df.limit(10), "StockCode").groupBy("StockCode", "Month").agg(F.sum("Revenue").alias("MonthlySales"))
+seasonal_pattern = online_retail_df.join(top_products_df.limit(10), "StockCode").groupBy("StockCode", "Description", "Month").agg(F.sum("Revenue").alias("MonthlySales"))
 seasonal_pattern.show()
 
 
