@@ -3,6 +3,10 @@ from pyspark.sql.types import *
 from pyspark.sql import functions as F
 from pyspark.sql.functions import col
 from pyspark.sql.types import TimestampType
+from pyspark.ml.feature import VectorAssembler, StandardScaler
+from pyspark.ml.regression import LinearRegression
+from pyspark.ml.evaluation import RegressionEvaluator
+from pyspark.ml.tuning import CrossValidator, ParamGridBuilder
 
 # Initialize Spark session
 spark = SparkSession.builder.appName("Project2").getOrCreate()
@@ -94,7 +98,7 @@ top_products_df = online_retail_df.groupBy("StockCode").agg(F.sum("Revenue").ali
 seasonal_pattern = online_retail_df.join(top_products_df.limit(10), "StockCode").groupBy("StockCode", "Description", "Month").agg(F.sum("Revenue").alias("MonthlySales"))
 seasonal_pattern.show()
 
-
+#feature engineering
 #customer liftime value: total revenue per customer
 clv_df = online_retail_df.groupBy("CustomerID").agg(F.sum("Revenue").alias("CustomerLifetimeValue"))
 clv_df.show()
@@ -117,16 +121,26 @@ seasonal_trends = online_retail_df.groupBy("StockCode", "Season").agg(F.sum("Rev
 seasonal_trends.show()
 
 #write the aggregated data to the directory as csv files
-try:
-    total_sales_df.write.csv(task2_output_total, header=True)
-    avg_revnue_df.write.csv(task2_output_avgsales, header=True)
-    seasonal_pattern.write.csv(task2_output_season, header=True)
-except ValueError as e:
-    print(f"error {e}")
+#try:
+#    total_sales_df.write.csv(task2_output_total, header=True)
+#    avg_revnue_df.write.csv(task2_output_avgsales, header=True)
+#    seasonal_pattern.write.csv(task2_output_season, header=True)
+#except ValueError as e:
+#    print(f"error {e}")
 
 #-----------------------------------
 #Task 3: Demand Forecasting Model
 #-----------------------------------
+# Join features into a consolidated DataFrame
+forecasting_df = total_sales_df.join(clv_df, "StockCode", "left") \
+                               .join(product_popularity, "StockCode", "left") \
+                               .join(seasonal_trends, "StockCode", "left")
+
+# Fill nulls with 0 or appropriate values for ML training
+forecasting_df = forecasting_df.fillna(0)
+
+# Display the consolidated DataFrame structure
+forecasting_df.show()
 
 
 #-----------------------------------
