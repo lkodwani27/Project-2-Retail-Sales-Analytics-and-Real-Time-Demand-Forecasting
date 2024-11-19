@@ -100,7 +100,7 @@ seasonal_pattern.show()
 
 #feature engineering
 #customer liftime value: total revenue per customer
-clv_df = online_retail_df.groupBy("CustomerID").agg(F.sum("Revenue").alias("CustomerLifetimeValue"))
+clv_df = online_retail_df.groupBy("CustomerID", "StockCode").agg(F.sum("Revenue").alias("CustomerLifetimeValue"))
 clv_df.show()
     
 #product popularity: counted by unique transaction made under each stock code
