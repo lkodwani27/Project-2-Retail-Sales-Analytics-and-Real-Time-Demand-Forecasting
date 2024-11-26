@@ -20,7 +20,7 @@ schema = StructType([
 
 # Define a function to identify anomalies
 def detect_anomalies(quantity, price):
-    if quantity > 40 or price > 600:  # Example anomaly thresholds
+    if quantity > 60 or price > 750:  # Example anomaly thresholds
         return "Anomaly"
     else:
         return "Normal"
