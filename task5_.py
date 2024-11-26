@@ -43,7 +43,7 @@ def spark_streaming_job():
 
     # Define anomaly detection function
     def detect_anomalies(quantity, price):
-        if quantity > 40 or price > 400:  # Example anomaly thresholds
+        if quantity > 10 or price > 100:  # Example anomaly thresholds
             return "Anomaly"
         else:
             return "Normal"
