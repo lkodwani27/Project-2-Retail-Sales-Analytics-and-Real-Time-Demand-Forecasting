@@ -1,6 +1,3 @@
-#--------------------------------------------------------------
-#Task 5: Real-Time Transaction Monitoring using Spark Streaming
-#--------------------------------------------------------------
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import *
 from pyspark.sql.types import StructType, StructField, StringType, IntegerType, DoubleType
@@ -25,7 +22,7 @@ def detect_anomalies(quantity, price):
     else:
         return "Normal"
 
-# Register the UDF (user-defined function)
+# Register the UDF
 anomaly_udf = udf(detect_anomalies, StringType())
 
 # Stream data from the socket
@@ -34,7 +31,7 @@ lines = spark.readStream \
     .option("host", "localhost") \
     .option("port", 9999) \
     .load()
-    
+
 # Parse the input data
 transactions = lines.withColumn("value", split(lines["value"], ",")) \
     .selectExpr(
@@ -43,10 +40,28 @@ transactions = lines.withColumn("value", split(lines["value"], ",")) \
         "CAST(value[2] AS INT) as quantity",
         "CAST(value[3] AS DOUBLE) as price"
     )
-    
+
 # Calculate running total sales
 sales_summary = transactions.groupBy("product_id") \
     .agg(
         sum(col("price") * col("quantity")).alias("total_sales"),
         count("*").alias("transaction_count")
     )
+
+# Add anomaly detection column
+transactions_with_anomalies = transactions.withColumn("anomaly", anomaly_udf(col("quantity"), col("price")))
+
+# Write output to console for debugging
+query_sales = sales_summary.writeStream \
+    .outputMode("update") \
+    .format("console") \
+    .start()
+
+query_anomalies = transactions_with_anomalies.writeStream \
+    .outputMode("append") \
+    .format("console") \
+    .start()
+
+# Await termination
+query_sales.awaitTermination()
+query_anomalies.awaitTermination()
