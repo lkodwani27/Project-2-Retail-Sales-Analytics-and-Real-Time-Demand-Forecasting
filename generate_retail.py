@@ -3,15 +3,16 @@ import random
 import socket
 from datetime import datetime
 
-# List of sample companies
-companies = ["AAPL", "MSFT", "GOOG", "AMZN", "NFLX", "TSLA", "META", "IBM", "ORCL", "INTC"]
+# Generate sample Product IDs
+products = [f"P{i:03}" for i in range(1, 301)]  # P001, P002, ..., P300
 
 # Function to generate random stock prices
-def generate_stock_price():
-    company = random.choice(companies)
-    price = round(random.uniform(100, 1500), 2)
+def generate_transaction():
+    product_id = random.choice(products)
+    quantity = random.randint(1, 80)  # Random quantity between 1 and 80
+    price = round(random.uniform(1, 1000), 2)  # Random price between $1 and $1000
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    return f"{timestamp},{company},{price}"
+    return f"{timestamp},{product_id},{quantity},{price}"
 
 def start_streaming():
     # Create a socket server
@@ -34,9 +35,9 @@ def start_streaming():
 
             # Continuously send data to the client
             while True:
-                stock_data = generate_stock_price()
-                connection.send((stock_data + "\n").encode('utf-8'))
-                print(f"Sent: {stock_data}")
+                transaction_data = generate_transaction()
+                connection.send((transaction_data + "\n").encode('utf-8'))
+                print(f"Sent: {transaction_data}")
                 time.sleep(1)
 
         except ConnectionResetError:
