@@ -78,10 +78,10 @@ spark = SparkSession.builder.appName("RealTimeTransactionMonitoring").getOrCreat
 lines = spark.readStream.format("socket").option("host", "localhost").option("port", 9999).load()
 
 # Parse the incoming data
-transactions = lines.withColumn("Product", split(col("value"), ",").getItem(0)) \
-                    .withColumn("Quantity", split(col("value"), ",").getItem(1).cast("int")) \
-                    .withColumn("Price", split(col("value"), ",").getItem(2).cast("float")) \
-                    .withColumn("Timestamp", split(col("value"), ",").getItem(3))
+transactions = lines.withColumn("Timestamp", split(col("value"), ",").getItem(0)) \
+                    .withColumn("Product", split(col("value"), ",").getItem(1)) \
+                    .withColumn("Quantity", split(col("value"), ",").getItem(2).cast("int")) \
+                    .withColumn("Price", split(col("value"), ",").getItem(3).cast("float"))
 
 # Calculate running total sales per product
 running_sales = transactions.groupBy("Product").agg({"Quantity": "sum", "Price": "sum"})
