@@ -1,67 +1,97 @@
+# from pyspark.sql import SparkSession
+# from pyspark.sql.functions import *
+# from pyspark.sql.types import StructType, StructField, StringType, IntegerType, DoubleType
+
+# # Create a Spark session
+# spark = SparkSession.builder \
+#     .appName("Real-Time Transaction Monitoring") \
+#     .getOrCreate()
+
+# # Define schema for transactions
+# schema = StructType([
+#     StructField("timestamp", StringType(), True),
+#     StructField("product_id", StringType(), True),
+#     StructField("quantity", IntegerType(), True),
+#     StructField("price", DoubleType(), True)
+# ])
+
+# # Define a function to identify anomalies
+# def detect_anomalies(quantity, price):
+#     if quantity > 60 or price > 750:  # Example anomaly thresholds
+#         return "Anomaly"
+#     else:
+#         return "Normal"
+
+# # Register the UDF
+# anomaly_udf = udf(detect_anomalies, StringType())
+
+# # Stream data from the socket
+# lines = spark.readStream \
+#     .format("socket") \
+#     .option("host", "localhost") \
+#     .option("port", 9999) \
+#     .load()
+
+# # Parse the input data
+# transactions = lines.withColumn("value", split(lines["value"], ",")) \
+#     .selectExpr(
+#         "value[0] as timestamp",
+#         "value[1] as product_id",
+#         "CAST(value[2] AS INT) as quantity",
+#         "CAST(value[3] AS DOUBLE) as price"
+#     )
+
+# # Calculate running total sales
+# sales_summary = transactions.groupBy("product_id") \
+#     .agg(
+#         sum(col("price") * col("quantity")).alias("total_sales"),
+#         count("*").alias("transaction_count")
+#     )
+
+# # Add anomaly detection column
+# transactions_with_anomalies = transactions.withColumn("anomaly", anomaly_udf(col("quantity"), col("price")))
+
+# # Write output to console for debugging
+# query_sales = sales_summary.writeStream \
+#     .outputMode("update") \
+#     .format("console") \
+#     .start()
+
+# query_anomalies = transactions_with_anomalies.writeStream \
+#     .outputMode("append") \
+#     .format("console") \
+#     .start()
+
+# # Await termination
+# query_sales.awaitTermination()
+# query_anomalies.awaitTermination()
+# ------------------------------------
+# Added by Lucky
+
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import *
-from pyspark.sql.types import StructType, StructField, StringType, IntegerType, DoubleType
+from pyspark.sql.functions import split, col, window
 
-# Create a Spark session
-spark = SparkSession.builder \
-    .appName("Real-Time Transaction Monitoring") \
-    .getOrCreate()
+# Initialize Spark Session
+spark = SparkSession.builder.appName("RealTimeTransactionMonitoring").getOrCreate()
 
-# Define schema for transactions
-schema = StructType([
-    StructField("timestamp", StringType(), True),
-    StructField("product_id", StringType(), True),
-    StructField("quantity", IntegerType(), True),
-    StructField("price", DoubleType(), True)
-])
+# Read data from socket
+lines = spark.readStream.format("socket").option("host", "localhost").option("port", 9999).load()
 
-# Define a function to identify anomalies
-def detect_anomalies(quantity, price):
-    if quantity > 60 or price > 750:  # Example anomaly thresholds
-        return "Anomaly"
-    else:
-        return "Normal"
+# Parse the incoming data
+transactions = lines.withColumn("Product", split(col("value"), ",").getItem(0)) \
+                    .withColumn("Quantity", split(col("value"), ",").getItem(1).cast("int")) \
+                    .withColumn("Price", split(col("value"), ",").getItem(2).cast("float")) \
+                    .withColumn("Timestamp", split(col("value"), ",").getItem(3))
 
-# Register the UDF
-anomaly_udf = udf(detect_anomalies, StringType())
+# Calculate running total sales per product
+running_sales = transactions.groupBy("Product").agg({"Quantity": "sum", "Price": "sum"})
 
-# Stream data from the socket
-lines = spark.readStream \
-    .format("socket") \
-    .option("host", "localhost") \
-    .option("port", 9999) \
-    .load()
+# Identify anomalies: quantities > threshold or unusual prices
+anomalies = transactions.filter((col("Quantity") > 3) | (col("Price") > 400))
 
-# Parse the input data
-transactions = lines.withColumn("value", split(lines["value"], ",")) \
-    .selectExpr(
-        "value[0] as timestamp",
-        "value[1] as product_id",
-        "CAST(value[2] AS INT) as quantity",
-        "CAST(value[3] AS DOUBLE) as price"
-    )
+# Output running sales and anomalies
+query1 = running_sales.writeStream.outputMode("complete").format("console").start()
+query2 = anomalies.writeStream.outputMode("append").format("console").start()
 
-# Calculate running total sales
-sales_summary = transactions.groupBy("product_id") \
-    .agg(
-        sum(col("price") * col("quantity")).alias("total_sales"),
-        count("*").alias("transaction_count")
-    )
-
-# Add anomaly detection column
-transactions_with_anomalies = transactions.withColumn("anomaly", anomaly_udf(col("quantity"), col("price")))
-
-# Write output to console for debugging
-query_sales = sales_summary.writeStream \
-    .outputMode("update") \
-    .format("console") \
-    .start()
-
-query_anomalies = transactions_with_anomalies.writeStream \
-    .outputMode("append") \
-    .format("console") \
-    .start()
-
-# Await termination
-query_sales.awaitTermination()
-query_anomalies.awaitTermination()
+query1.awaitTermination()
+query2.awaitTermination()
