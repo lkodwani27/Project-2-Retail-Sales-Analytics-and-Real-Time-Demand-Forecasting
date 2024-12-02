@@ -74,6 +74,9 @@ from pyspark.sql.functions import split, col, window, count, sum as spark_sum
 # Initialize Spark Session
 spark = SparkSession.builder.appName("RealTimeTransactionMonitoring").getOrCreate()
 
+# Suppress unnecessary logs
+spark.sparkContext.setLogLevel("ERROR")
+
 # Read data from socket
 lines = spark.readStream.format("socket").option("host", "localhost").option("port", 9999).load()
 
@@ -95,9 +98,47 @@ running_sales = transactions.groupBy("Product").agg({"Quantity": "sum", "Price":
 # Identify anomalies: quantities > threshold or unusual prices
 anomalies = transactions.filter((col("Quantity") > 60) | (col("Price") > 700))
 
-# Output running sales and anomalies
-query1 = running_sales.writeStream.outputMode("complete").format("console").start()
-query2 = anomalies.writeStream.outputMode("append").format("console").start()
+# Write results to SQLite database
+def write_to_db(df, epoch_id):
+    # Define database connection
+    db_url = "jdbc:sqlite:/workspaces/Project-2-Retail-Sales-Analytics-and-Real-Time-Demand-Forecasting/retail_data.db"
+    table_name = "running_sales"
 
-query1.awaitTermination()
-query2.awaitTermination()
+    # Write running sales
+    df.write.format("jdbc") \
+        .option("url", db_url) \
+        .option("dbtable", table_name) \
+        .option("driver", "org.sqlite.JDBC") \
+        .mode("overwrite") \
+        .save()
+
+running_sales.writeStream \
+    .foreachBatch(write_to_db) \
+    .outputMode("complete") \
+    .start()
+
+def write_anomalies_to_db(df, epoch_id):
+    # Define database connection
+    db_url = "jdbc:sqlite:/tmp/retail_data.db"
+    table_name = "anomalies"
+
+    # Write anomalies
+    df.write.format("jdbc") \
+        .option("url", db_url) \
+        .option("dbtable", table_name) \
+        .option("driver", "org.sqlite.JDBC") \
+        .mode("append") \
+        .save()
+
+anomalies.writeStream \
+    .foreachBatch(write_anomalies_to_db) \
+    .outputMode("append") \
+    .start() \
+    .awaitTermination()
+    
+# # Output running sales and anomalies
+# query1 = running_sales.writeStream.outputMode("complete").format("console").start()
+# query2 = anomalies.writeStream.outputMode("append").format("console").start()
+
+# query1.awaitTermination()
+# query2.awaitTermination()
