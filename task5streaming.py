@@ -69,7 +69,7 @@
 # Added by Lucky
 
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import split, col, window
+from pyspark.sql.functions import split, col, window, count, sum as spark_sum
 
 # Initialize Spark Session
 spark = SparkSession.builder.appName("RealTimeTransactionMonitoring").getOrCreate()
@@ -83,11 +83,17 @@ transactions = lines.withColumn("Timestamp", split(col("value"), ",").getItem(0)
                     .withColumn("Quantity", split(col("value"), ",").getItem(2).cast("int")) \
                     .withColumn("Price", split(col("value"), ",").getItem(3).cast("float"))
 
+transactions.printSchema()
+#transactions.writeStream.outputMode("append").format("console").option("truncate", False).start()
+
 # Calculate running total sales per product
 running_sales = transactions.groupBy("Product").agg({"Quantity": "sum", "Price": "sum"})
+#running_sales = transactions.groupBy("Product").agg(
+#    spark_sum("Quantity").alias("TotalQuantity"), spark_sum("Price").alias("TotalPrice")
+#)
 
 # Identify anomalies: quantities > threshold or unusual prices
-anomalies = transactions.filter((col("Quantity") > 3) | (col("Price") > 400))
+anomalies = transactions.filter((col("Quantity") > 60) | (col("Price") > 700))
 
 # Output running sales and anomalies
 query1 = running_sales.writeStream.outputMode("complete").format("console").start()
