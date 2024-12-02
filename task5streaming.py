@@ -91,35 +91,58 @@ transactions.printSchema()
 
 # Calculate running total sales per product
 running_sales = transactions.groupBy("Product").agg({"Quantity": "sum", "Price": "sum"})
+running_sales.printSchema()
 #running_sales = transactions.groupBy("Product").agg(
 #    spark_sum("Quantity").alias("TotalQuantity"), spark_sum("Price").alias("TotalPrice")
 #)
+# Calculate running total sales per product
+# running_sales = transactions.groupBy("Product").agg(
+#     spark_sum("Quantity").alias("sum_Quantity"),
+#     spark_sum("Price").alias("sum_Price")
+# )
 
-# Identify anomalies: quantities > threshold or unusual prices
-anomalies = transactions.filter((col("Quantity") > 60) | (col("Price") > 700))
+# Rename columns explicitly to match expected schema
+# running_sales = running_sales.select(
+#     col("Product"),
+#     col("sum(Quantity)").alias("TotalQuantity"),
+#     col("sum(Price)").alias("TotalSales")
+# )
 
 # Write results to SQLite database
 def write_to_db(df, epoch_id):
+    print(f"Writing running_sales to database for epoch {epoch_id}")
     # Define database connection
     db_url = "jdbc:sqlite:/workspaces/Project-2-Retail-Sales-Analytics-and-Real-Time-Demand-Forecasting/retail_data.db"
     table_name = "running_sales"
 
-    # Write running sales
-    df.write.format("jdbc") \
-        .option("url", db_url) \
-        .option("dbtable", table_name) \
-        .option("driver", "org.sqlite.JDBC") \
-        .mode("overwrite") \
-        .save()
+    # # Write running sales
+    # df.write.format("jdbc") \
+    #     .option("url", db_url) \
+    #     .option("dbtable", table_name) \
+    #     .option("driver", "org.sqlite.JDBC") \
+    #     .mode("append") \
+    #     .save()
+    try:
+        # Show the DataFrame for debugging
+        df.show()
+        df.write.format("jdbc") \
+            .option("url", db_url) \
+            .option("dbtable", table_name) \
+            .option("driver", "org.sqlite.JDBC") \
+            .mode("append") \
+            .save()
+        print(f"Data written successfully to {table_name}")
+    except Exception as e:
+        print(f"Error writing running_sales: {e}")
 
-running_sales.writeStream \
-    .foreachBatch(write_to_db) \
-    .outputMode("complete") \
-    .start()
+
+
+# Identify anomalies: quantities > threshold or unusual prices
+anomalies = transactions.filter((col("Quantity") > 60) | (col("Price") > 700))
 
 def write_anomalies_to_db(df, epoch_id):
     # Define database connection
-    db_url = "jdbc:sqlite:/tmp/retail_data.db"
+    db_url = "jdbc:sqlite:/workspaces/Project-2-Retail-Sales-Analytics-and-Real-Time-Demand-Forecasting/retail_data.db"
     table_name = "anomalies"
 
     # Write anomalies
@@ -129,6 +152,12 @@ def write_anomalies_to_db(df, epoch_id):
         .option("driver", "org.sqlite.JDBC") \
         .mode("append") \
         .save()
+        
+running_sales.writeStream \
+    .foreachBatch(write_to_db) \
+    .outputMode("complete") \
+    .start() \
+    .awaitTermination()        
 
 anomalies.writeStream \
     .foreachBatch(write_anomalies_to_db) \
