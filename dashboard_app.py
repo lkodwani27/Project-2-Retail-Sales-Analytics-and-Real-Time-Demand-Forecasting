@@ -36,7 +36,7 @@ def update_running_sales(n):
     df = pd.read_sql(query, conn)
     conn.close()
 
-    fig = px.bar(df, x="Product", y=["sum(Quantity)", "sum(Price)"], barmode="group",
+    fig = px.bar(df, x="Product", y=["TotalQuantity", "TotalSales"], barmode="group",
                  title="Running Sales per Product")
     return fig
 
